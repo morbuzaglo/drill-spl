@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="קידוח מכויל">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style>
+<title>מחולל קידוח מכויל</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Hebrew:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one narrow instrument column — sticky transport/readout bar, then three views (control, calibration, formula). */
+:root{
+  --bg:#edf0f3; --panel:#ffffff; --ink:#15202b; --muted:#5a6877; --line:#d3dae2; --track:#dde3ea;
+  --accent:#e3a40c; --accent-ink:#1d1603; --ok:#1f8656; --warn:#b06600; --bad:#c2392d; --meas:#2b6fd6;
+  --f-ui:"IBM Plex Sans Hebrew",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e141a; --panel:#161f28; --ink:#e6ecf2; --muted:#92a0ae; --line:#283442; --track:#24303c;
+  --accent:#f0b62a; --accent-ink:#1d1603; --ok:#3fbf83; --warn:#e3962c; --bad:#ef6a5c; --meas:#6aa5ff; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e141a; --panel:#161f28; --ink:#e6ecf2; --muted:#92a0ae; --line:#283442; --track:#24303c;
+  --accent:#f0b62a; --accent-ink:#1d1603; --ok:#3fbf83; --warn:#e3962c; --bad:#ef6a5c; --meas:#6aa5ff; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:15px;line-height:1.5;-webkit-tap-highlight-color:transparent}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.wrap{max-width:720px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 40px}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+header.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:12px 10px;border-bottom:1px solid var(--line);display:grid;gap:10px}
+.toprow{display:flex;align-items:center;gap:12px}
+.brand{font-weight:700;font-size:17px;letter-spacing:.01em;flex:1;min-width:0}
+.brand small{display:block;font-weight:400;font-size:12px;color:var(--muted)}
+.play{border:0;border-radius:999px;background:var(--accent);color:var(--accent-ink);font-weight:700;padding:10px 20px;min-width:96px;font-size:16px}
+.play[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.readouts{display:flex;gap:8px;flex-wrap:wrap}
+.ro{display:flex;align-items:baseline;gap:6px;padding:4px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+.ro b{font-family:var(--f-num);font-weight:500;font-size:16px}
+.ro span{font-size:11px;color:var(--muted);letter-spacing:.04em}
+.chip{font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;align-self:center}
+.chip.ok{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
+.chip.warn{background:color-mix(in srgb,var(--warn) 16%,transparent);color:var(--warn)}
+.chip.bad{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);background:var(--track);border-radius:10px;padding:3px}
+.tabs button{border:0;background:transparent;padding:7px 4px;border-radius:8px;font-weight:600;font-size:14px;color:var(--muted)}
+.tabs button[aria-selected="true"]{background:var(--panel);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+
+section.view{display:grid;gap:16px;padding-top:16px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+h2{font-size:15px;margin:0 0 8px;font-weight:700;text-wrap:balance}
+p{margin:0}
+.muted{color:var(--muted);font-size:13px}
+.status{font-size:13px;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,var(--warn) 12%,var(--panel));border:1px solid color-mix(in srgb,var(--warn) 35%,var(--line))}
+.status.err{background:color-mix(in srgb,var(--bad) 10%,var(--panel));border-color:color-mix(in srgb,var(--bad) 40%,var(--line))}
+.status.okk{background:color-mix(in srgb,var(--ok) 10%,var(--panel));border-color:color-mix(in srgb,var(--ok) 35%,var(--line))}
+
+.chart{width:100%;height:auto;display:block}
+.bands{display:grid;gap:2px}
+.band{display:grid;grid-template-columns:auto 1fr auto;grid-template-areas:"fq val val" "ctl ctl ctl";gap:4px 10px;padding:10px 0;border-top:1px solid var(--line)}
+.band:first-child{border-top:0}
+.fq{grid-area:fq;border:1px solid var(--line);background:transparent;border-radius:7px;padding:2px 8px;font-family:var(--f-num);font-weight:500;min-width:58px}
+.fq small{font-size:10px;color:var(--muted);margin-inline-start:2px}
+.fq[aria-pressed="false"]{opacity:.45;text-decoration:line-through}
+.val{grid-area:val;display:flex;align-items:baseline;justify-content:flex-end;gap:8px;min-width:0}
+.val output{font-family:var(--f-num);font-size:20px;font-weight:500}
+.val .u{font-size:11px;color:var(--muted)}
+.val .dig{font-size:12px;color:var(--muted);font-family:var(--f-num)}
+.val .meas{font-size:12px;color:var(--meas);font-family:var(--f-num)}
+.ctl{grid-area:ctl;display:grid;grid-template-columns:40px 1fr 40px;gap:8px;align-items:center;direction:ltr}
+.stepb{height:36px;border:1px solid var(--line);background:var(--panel);border-radius:8px;font-size:20px;line-height:1}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:28px;background:transparent;margin:0}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:var(--track)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;height:24px;border-radius:50%;background:var(--accent);border:2px solid var(--panel);margin-top:-9px;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:var(--track)}
+input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:var(--accent);border:2px solid var(--panel)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:8px 12px;font-size:14px;font-weight:600}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.btn.on{background:var(--meas);color:#fff;border-color:transparent}
+.btn:disabled{opacity:.45;cursor:default}
+
+ol.steps{margin:0;padding-inline-start:20px;display:grid;gap:6px;font-size:14px}
+.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:10px}
+label.f{display:grid;gap:4px;font-size:12px;color:var(--muted);min-width:0}
+/* 16px inputs: iOS Safari zooms the page on focus below 16px */
+label.f input,.cb input,select,textarea{font:inherit;font-family:var(--f-num);font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 9px;width:100%;min-width:0;direction:ltr}
+.calList{display:grid}
+.cb{display:grid;grid-template-columns:auto 1fr auto;grid-template-areas:"hz k play" "m m m" "ref ref ref";gap:6px 10px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.cb:first-child{border-top:0}
+.cb .hz{grid-area:hz;font-family:var(--f-num);font-weight:500;font-size:15px}
+.cb .hz small{font-size:10px;color:var(--muted)}
+.cb .k{grid-area:k;font-size:13px;color:var(--muted)}
+.cb .k b{font-family:var(--f-num);font-size:16px;color:var(--ink);font-weight:600}
+.cb .m{grid-area:m;display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--muted)}
+.cb .m span b{font-family:var(--f-num);font-weight:500;color:var(--ink);direction:ltr;unicode-bidi:isolate}
+.cb .ref{grid-area:ref;display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:center;font-size:12px;color:var(--muted)}
+.cb .ref input{max-width:140px;padding:5px 8px}
+.tplay{grid-area:play;border:1px solid var(--line);background:var(--panel);border-radius:8px;width:40px;height:34px}
+.tplay[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.snr-ok,.cb .m b.snr-ok{color:var(--ok)} .snr-warn,.cb .m b.snr-warn{color:var(--warn)} .snr-bad,.cb .m b.snr-bad{color:var(--bad)}
+.progress{height:6px;background:var(--track);border-radius:3px;overflow:hidden}
+.progress i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+
+.eq{direction:ltr;text-align:left;font-family:var(--f-num);font-size:13px;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:10px 12px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65;min-width:0}
+.eq .c{display:inline-block;direction:rtl;font-family:var(--f-ui)}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+html,body{max-width:100%;overflow-x:hidden}
+.panel,.view,.wrap{min-width:0}
+.val{flex-wrap:wrap}
+.def{grid-template-columns:minmax(0,auto) minmax(0,1fr)}
+.eq .c{color:var(--muted)}
+.def{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:13px}
+.def dt{font-family:var(--f-num);direction:ltr;font-weight:500}
+.def dd{margin:0;color:var(--muted)}
+textarea{min-height:90px;font-size:12px}
+@media (prefers-reduced-motion:reduce){.progress i{transition:none}}
+</style>
+</head>
+<body>
+
+
+<div class="wrap" id="app" dir="rtl" lang="he">
+  <header class="bar">
+    <div class="toprow">
+      <div class="brand">מחולל קידוח מכויל<small>8 אוקטבות · dB SPL ב‑1 מ׳</small></div>
+      <button class="play" id="playBtn" aria-pressed="false">▶ נגן</button>
+    </div>
+    <div class="readouts">
+      <div class="ro"><b id="roA">—</b><span>dB(A)</span></div>
+      <div class="ro"><b id="roZ">—</b><span>dB(Z)</span></div>
+      <div class="ro"><b id="roHead">—</b><span>מרווח dB</span></div>
+      <span class="chip warn" id="calChip">לא מכויל</span>
+    </div>
+    <div class="tabs" role="tablist">
+      <button role="tab" id="t-ctl" aria-selected="true">שליטה</button>
+      <button role="tab" id="t-cal" aria-selected="false">כיול</button>
+      <button role="tab" id="t-eq" aria-selected="false">נוסחה</button>
+    </div>
+  </header>
+
+  <!-- CONTROL -->
+  <section class="view" id="v-ctl">
+    <div class="status" id="uncalNote">עדיין אין כיול. הצליל יתנגן, אבל ערכי ה‑dB SPL הם הנחה (K = 100) ולא מדידה. עבור ללשונית <b>כיול</b>.</div>
+    <div class="panel">
+      <svg class="chart" id="chart" viewBox="0 0 360 180" role="img" aria-label="ספקטרום יעד באוקטבות"></svg>
+      <div class="row" style="justify-content:space-between;margin-top:6px">
+        <span class="muted">עמודה = יעד · קו כחול = נמדד במיקרופון</span>
+        <button class="btn" id="verifyBtn">מדידת אימות</button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="row" style="justify-content:space-between;margin-bottom:6px">
+        <h2 style="margin:0">עוצמה לכל אוקטבה</h2>
+        <div class="row">
+          <button class="btn" id="allDown">הכול −1</button>
+          <button class="btn" id="allUp">הכול +1</button>
+        </div>
+      </div>
+      <div class="bands" id="bands"></div>
+      <div class="row" style="margin-top:10px">
+        <span class="muted">פרופיל:</span>
+        <button class="btn" id="pDrill">קידוח לדוגמה</button>
+        <button class="btn" id="pFlat">שטוח 80</button>
+      </div>
+    </div>
+    <p class="muted">הקש על התדר כדי להשתיק את הפס. אל תשנה את עוצמת האייפון או ה‑JBL אחרי הכיול, אחרת הכיול לא תקף.</p>
+  </section>
+
+  <!-- CALIBRATION -->
+  <section class="view" id="v-cal" hidden>
+    <div class="panel">
+      <h2>לפני הכיול</h2>
+      <ol class="steps">
+        <li>ה‑JBL על הרצפה, מחובר ב‑Bluetooth. קבע עוצמה באייפון וברמקול <b>ואל תיגע בהן יותר</b>.</li>
+        <li>עמוד 1 מ׳ מהרמקול, האייפון בגובה האוזן, המיקרופון התחתון מופנה לרמקול.</li>
+        <li>חדר שקט. במהלך הכיול אל תזוז ואל תדבר (כ‑35 שניות).</li>
+        <li>ודא שהצליל יוצא מה‑JBL כשהמיקרופון פעיל. ב‑iOS הפעלת מיקרופון יכולה להעביר את הצליל לרמקול האייפון.</li>
+      </ol>
+    </div>
+    <div class="panel">
+      <h2>פרמטרים</h2>
+      <div class="fields">
+        <label class="f">רמת בדיקה לכל פס L<sub>test</sub> (dBFS)<input id="fLtest" type="number" step="1" inputmode="decimal"></label>
+        <label class="f">רגישות מיקרופון C<sub>mic</sub> (dB SPL ב‑0 dBFS)<input id="fCmic" type="number" step="0.1" inputmode="decimal"></label>
+        <label class="f">המתנה לפני מדידה (שניות)<input id="fSettle" type="number" step="0.1" inputmode="decimal"></label>
+      </div>
+      <p class="muted" style="margin-top:8px">ברירת המחדל של C<sub>mic</sub> היא הערכה למיקרופון MEMS של אייפון. בלי מד ייחוס, הדיוק המוחלט הוא בערך ±3–5 dB. עם מד ייחוס ב‑1 kHz, ההפרש בין הפסים מדויק יותר.</p>
+    </div>
+    <div class="panel">
+      <h2>כיול C<sub>mic</sub> עם קולן אקוסטי</h2>
+      <div class="fields">
+        <label class="f">רמת הקולן (dB SPL)<input id="fCalLvl" type="number" step="0.1" inputmode="decimal" value="94"></label>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn primary" id="calibBtn">מדוד קולן (5 שניות)</button>
+      </div>
+      <p class="muted" id="calibMsg" style="margin-top:6px">הצמד את פתח הקולן למיקרופון התחתון של האייפון, הפעל אותו, ואז לחץ. C<sub>mic</sub> = רמת הקולן − M<sub>1k</sub></p>
+    </div>
+    <div class="panel">
+      <div class="row" style="justify-content:space-between">
+        <h2 style="margin:0">כיול אוטומטי במיקרופון</h2>
+        <button class="btn primary" id="calBtn">התחל כיול</button>
+      </div>
+      <div class="progress" style="margin-top:10px"><i id="calProg"></i></div>
+      <p class="muted" id="calMsg" style="margin-top:6px">מודד רעש רקע, ואז מנגן כל אוקטבה לבד ומודד.</p>
+      <div class="calList" id="calBody" style="margin-top:10px"></div>
+      <p class="muted" style="margin-top:8px">ערכי M ב‑dBFS. <b>ייחוס R</b>: אם יש מד SPL חיצוני, הפעל ▶ בשורה, קרא את המד (Z או C, תגובה Slow) והקלד. ערך R גובר על המיקרופון בפס הזה.</p>
+      <div class="row" style="margin-top:10px">
+        <button class="btn" id="cmicFrom1k">חשב C<sub>mic</sub> מהייחוס ב‑1k</button>
+        <button class="btn" id="calReset">אפס כיול</button>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>גיבוי כיול</h2>
+      <textarea id="calJson" spellcheck="false" aria-label="נתוני כיול JSON"></textarea>
+      <div class="row" style="margin-top:8px">
+        <button class="btn" id="copyCal">העתק</button>
+        <button class="btn" id="loadCal">טען מהטקסט</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- FORMULA -->
+  <section class="view" id="v-eq" hidden>
+    <div class="panel">
+      <h2>איך מחושב הכיול</h2>
+      <p class="muted" style="margin-bottom:10px">כל פס אוקטבה b מטופל בנפרד. הקול נבנה מ‑8 רצועות נפרדות, וכל רצועה מנורמלת ל‑L<sub>ref</sub> = −30 dBFS RMS.</p>
+<div class="eq"><span class="c">1. מיקרופון → רמת פס (FFT, Blackman)</span>
+M_b = 10·log10((2/W₂)·Σ|X_k|²)
+k ∈ [f_c/√2, f_c·√2], W₂ = 0.3046
+
+<span class="c">2. הורדת רעש רקע</span>
+M_sig = 10·log10(10^(M_tot/10)
+              − 10^(M_bg/10))
+
+<span class="c">3. קבוע מערכת ב‑1 מ׳ (מיקרופון)</span>
+K_b = M_sig,b + C_mic − L_test
+<span class="c">או עם מד ייחוס</span>
+K_b = R_b − L_test
+
+<span class="c">4. ניגון: יעד → dBFS → הגבר</span>
+L_b = T_b − K_b
+g_b = 10^((L_b − L_ref)/20)
+
+<span class="c">5. C_mic מייחוס ב‑1 kHz</span>
+C_mic = R_1k − M_sig,1k
+
+<span class="c">6. סכומים</span>
+L_Z = 10·log10 Σ 10^(T_b/10)
+L_A = 10·log10 Σ 10^((T_b+A_b)/10)</div>
+    </div>
+    <div class="panel">
+      <div class="row" style="justify-content:space-between;margin-bottom:8px">
+        <h2 style="margin:0">עם המספרים שלך</h2>
+        <select id="eqBand" style="width:auto" aria-label="בחר פס"></select>
+      </div>
+      <div class="eq" id="eqLive"></div>
+    </div>
+    <div class="panel">
+      <h2>הגדרות</h2>
+      <dl class="def">
+        <dt>T_b</dt><dd>היעד שלך ב‑dB SPL (לא משוקלל) באוקטבה b</dd>
+        <dt>K_b</dt><dd>כמה dB SPL ב‑1 מ׳ מתקבלים על כל 0 dBFS בפס הזה</dd>
+        <dt>L_test</dt><dd>הרמה הדיגיטלית שבה נוגן הפס בזמן הכיול</dd>
+        <dt>C_mic</dt><dd>ה‑SPL שמתאים לאות RMS = 1 (0 dBFS) במיקרופון</dd>
+        <dt>SNR</dt><dd>M_tot − M_bg. מעל 10 dB תקין, 3–10 מתוקן, מתחת ל‑3 לא תקף</dd>
+        <dt>A_b</dt><dd>שקלול A: −26.2, −16.1, −8.6, −3.2, 0, +1.2, +1.0, −1.1</dd>
+      </dl>
+    </div>
+  </section>
+</div>
+
+<script>
+(function(){
+"use strict";
+try{document.documentElement.lang='he';}catch(e){}
+const FC=[62.5,125,250,500,1000,2000,4000,8000];
+const LAB=['63','125','250','500','1k','2k','4k','8k'];
+const AW=[-26.2,-16.1,-8.6,-3.2,0,1.2,1.0,-1.1];
+const LREF=-30, W2=0.3046, KDEF=100, TMIN=30, TMAX=120;
+const PRESET_DRILL=[78,82,86,89,92,93,91,86];
+const $=id=>document.getElementById(id);
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const f1=v=>(v==null||!isFinite(v))?'—':(v<0?'−':'')+Math.abs(v).toFixed(1);
+const db2=p=>10*Math.log10(p);
+const STORE='drillspl.v1';
+
+/* ---------- state ---------- */
+function defState(){return{targets:PRESET_DRILL.slice(),on:[1,1,1,1,1,1,1,1],
+  cal:{cmic:123,ltest:-20,settle:1.2,date:null,bands:FC.map(()=>({bg:null,tot:null,sig:null,ref:null}))}};}
+let S=defState();
+try{const raw=localStorage.getItem(STORE);if(raw){const o=JSON.parse(raw);if(o&&o.targets&&o.cal)S=o;}}catch(e){}
+function save(){try{localStorage.setItem(STORE,JSON.stringify(S));}catch(e){}}
+
+function K(b){const c=S.cal,x=c.bands[b];
+  if(x.ref!=null&&x.ref!==''&&isFinite(+x.ref))return +x.ref-c.ltest;
+  if(x.sig!=null&&isFinite(x.sig))return x.sig+c.cmic-c.ltest;return null;}
+const Kuse=b=>{const k=K(b);return k==null?KDEF:k;};
+const calibrated=()=>FC.every((_,b)=>K(b)!=null);
+const Ldig=b=>S.targets[b]-Kuse(b);
+const gainOf=b=>S.on[b]?Math.pow(10,(Ldig(b)-LREF)/20):0;
+
+/* ---------- drill synthesis, split into exact octave bands ---------- */
+function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function fft(re,im,inv){const n=re.length;
+  for(let i=1,j=0;i<n;i++){let bit=n>>1;for(;j&bit;bit>>=1)j^=bit;j^=bit;if(i<j){let t=re[i];re[i]=re[j];re[j]=t;t=im[i];im[i]=im[j];im[j]=t;}}
+  for(let len=2;len<=n;len<<=1){const ang=2*Math.PI/len*(inv?1:-1),wr=Math.cos(ang),wi=Math.sin(ang),h=len>>1;
+    for(let i=0;i<n;i+=len){let cr=1,ci=0;for(let j=0;j<h;j++){const a=i+j,b=a+h;
+      const xr=re[b]*cr-im[b]*ci,xi=re[b]*ci+im[b]*cr;re[b]=re[a]-xr;im[b]=im[a]-xi;re[a]+=xr;im[a]+=xi;
+      const t=cr*wr-ci*wi;ci=cr*wi+ci*wr;cr=t;}}}}
+function buildDrill(sr){
+  const N=1<<18,x=new Float64Array(N),rnd=mulberry(20261109);
+  const P=N/256;                         /* hammer blows, ~47 Hz, exactly periodic in the loop */
+  const env=new Float64Array(N),thump=new Float64Array(N);
+  for(let n=0;n<N;n++){const m=n%P;env[n]=Math.exp(-m/(0.004*sr));
+    thump[n]=Math.sin(2*Math.PI*70*m/sr)*Math.exp(-m/(0.012*sr))+0.5*Math.sin(2*Math.PI*930*m/sr)*Math.exp(-m/(0.003*sr));}
+  const k0=Math.round(190*N/sr);         /* motor fundamental on an exact FFT bin */
+  for(let h=1;h<=70;h++){const k=h*k0;if(k>=N/2-2)break;const a=0.5/Math.pow(h,0.75),ph=rnd()*6.2832,w=2*Math.PI*k/N;
+    for(let n=0;n<N;n++)x[n]+=a*Math.sin(w*n+ph)*(0.65+0.35*env[n]);}
+  [[2400,.09],[3650,.06],[5200,.04]].forEach(([f,a])=>{const w=2*Math.PI*Math.round(f*N/sr)/N,ph=rnd()*6.28;for(let n=0;n<N;n++)x[n]+=a*Math.sin(w*n+ph);});
+  for(let n=0;n<N;n++)x[n]+=(rnd()*2-1)*(0.2+0.8*env[n])*0.7+0.9*thump[n];
+  const re=Float64Array.from(x),im=new Float64Array(N);fft(re,im,false);
+  const out=[],ref=Math.pow(10,LREF/20);
+  for(let b=0;b<8;b++){
+    const lo=Math.ceil(FC[b]/Math.SQRT2*N/sr),hi=Math.min(N/2-1,Math.floor(FC[b]*Math.SQRT2*N/sr));
+    const br=new Float64Array(N),bi=new Float64Array(N);
+    for(let k=lo;k<=hi;k++){br[k]=re[k];bi[k]=im[k];br[N-k]=re[k];bi[N-k]=-im[k];}
+    fft(br,bi,true);let ss=0;for(let n=0;n<N;n++){br[n]/=N;ss+=br[n]*br[n];}
+    const s=ref/Math.sqrt(ss/N),f=new Float32Array(N);for(let n=0;n<N;n++)f[n]=br[n]*s;out.push(f);}
+  return out;
+}
+
+/* ---------- audio engine ---------- */
+let ctx=null,bands=null,bufs=null,bandSR=0,srcs=[],gns=[],master=null,running=false;
+let mode='idle'; /* idle | play | test | cal */
+let testBand=-1;
+function setSession(t){try{if(navigator.audioSession)navigator.audioSession.type=t;}catch(e){}}
+async function ensureAudio(){
+  if(!ctx){const AC=window.AudioContext||window.webkitAudioContext;ctx=new AC();}
+  if(ctx.state!=='running'){try{await ctx.resume();}catch(e){}}
+  if(!bands){showStatus('מכין את צליל הקידוח…','');await sleep(30);
+    bandSR=ctx.sampleRate;bands=buildDrill(bandSR);
+    bufs=bands.map(b=>{const B=ctx.createBuffer(1,b.length,bandSR);B.getChannelData(0).set(b);return B;});
+    hideStatus();schedulePeak();}
+}
+function startEngine(){if(running)return;
+  master=ctx.createGain();master.connect(ctx.destination);const t=ctx.currentTime+0.08;srcs=[];gns=[];
+  bufs.forEach(B=>{const s=ctx.createBufferSource();s.buffer=B;s.loop=true;const g=ctx.createGain();g.gain.value=0;s.connect(g);g.connect(master);s.start(t);srcs.push(s);gns.push(g);});
+  running=true;}
+function stopEngine(){if(!running)return;srcs.forEach(s=>{try{s.stop();}catch(e){}});try{master.disconnect();}catch(e){}srcs=[];gns=[];running=false;}
+function setGains(arr){if(!running)return;const t=ctx.currentTime;gns.forEach((g,i)=>g.gain.setTargetAtTime(arr[i],t,0.03));}
+function applyMode(){
+  if(mode==='play')setGains(FC.map((_,b)=>gainOf(b)));
+  else if(mode==='test'){const g=Math.pow(10,(S.cal.ltest-LREF)/20);setGains(FC.map((_,b)=>b===testBand?g:0));}
+}
+
+/* ---------- microphone & octave analysis ---------- */
+let mic=null,micSrc=null,an=null,sink=null,ranges=null,fbuf=null;
+async function micOn(){
+  if(mic)return;
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new Error('nomedia');
+  setSession('play-and-record');
+  mic=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false,channelCount:1}});
+  if(ctx.state!=='running'){try{await ctx.resume();}catch(e){}}
+  micSrc=ctx.createMediaStreamSource(mic);an=ctx.createAnalyser();an.fftSize=16384;an.smoothingTimeConstant=0;
+  sink=ctx.createGain();sink.gain.value=0;micSrc.connect(an);an.connect(sink);sink.connect(ctx.destination);
+  const sr=ctx.sampleRate,n=an.fftSize;
+  ranges=FC.map(f=>[Math.ceil(f/Math.SQRT2*n/sr),Math.min(n/2-1,Math.floor(f*Math.SQRT2*n/sr))]);
+  fbuf=new Float32Array(an.frequencyBinCount);
+}
+function micOff(){if(!mic)return;mic.getTracks().forEach(t=>t.stop());try{micSrc.disconnect();an.disconnect();sink.disconnect();}catch(e){}mic=null;setSession('playback');}
+function readBands(){an.getFloatFrequencyData(fbuf);
+  return ranges.map(([a,b])=>{let s=0;for(let k=a;k<=b;k++){const v=fbuf[k];if(v>-250)s+=Math.pow(10,v/10);}return s*2/W2;});}
+let abortCal=false;
+async function measure(ms,tick){const n=Math.max(1,Math.round(ms/100)),acc=new Float64Array(8);
+  for(let i=0;i<n;i++){await sleep(100);if(abortCal)throw new Error('abort');const p=readBands();for(let b=0;b<8;b++)acc[b]+=p[b];if(tick)tick(i+1,n);}
+  return Array.from(acc,v=>db2(v/n+1e-30));}
+function micErrorText(e){
+  if(e&&e.message==='nomedia')return 'אין גישה למיקרופון בדפדפן הזה.';
+  return 'המיקרופון חסום כאן. בתצוגה בתוך Claude אין גישה למיקרופון: פתח את קובץ ה‑HTML מכתובת https ב‑Safari ואשר גישה. אפשר בינתיים לכייל ידנית עם מד SPL חיצוני (עמודת R).';}
+
+/* ---------- UI: status ---------- */
+function showStatus(t,cls){const el=$('uncalNote');el.className='status '+(cls||'');el.innerHTML=t;el.hidden=false;statusSticky=true;}
+let statusSticky=false;
+function hideStatus(){statusSticky=false;renderCalState();}
+
+/* ---------- UI: tabs ---------- */
+const views={ctl:$('v-ctl'),cal:$('v-cal'),eq:$('v-eq')};
+function tab(k){Object.keys(views).forEach(n=>{views[n].hidden=n!==k;$('t-'+n).setAttribute('aria-selected',String(n===k));});if(k==='eq')renderEq();if(k==='cal')renderCal();}
+$('t-ctl').onclick=()=>tab('ctl');$('t-cal').onclick=()=>tab('cal');$('t-eq').onclick=()=>tab('eq');
+
+/* ---------- UI: band controls ---------- */
+const bandEls=[];
+(function buildBands(){const host=$('bands');
+  FC.forEach((f,b)=>{const d=document.createElement('div');d.className='band';
+    d.innerHTML=`<button class="fq" aria-pressed="true" aria-label="השתק ${LAB[b]} הרץ">${LAB[b]}<small>Hz</small></button>
+    <div class="val"><span class="meas" hidden></span><span class="dig"></span><output></output><span class="u">dB SPL</span></div>
+    <div class="ctl"><button class="stepb" aria-label="הורד 0.5 dB">−</button><input type="range" id="r${b}" min="${TMIN}" max="${TMAX}" step="0.5" aria-label="יעד ${LAB[b]} הרץ"><button class="stepb" aria-label="הגבר 0.5 dB">+</button></div>`;
+    host.appendChild(d);
+    const [fq]=d.getElementsByClassName('fq'),r=d.querySelector('input'),[mn,pl]=d.getElementsByClassName('stepb');
+    const set=v=>{S.targets[b]=Math.max(TMIN,Math.min(TMAX,Math.round(v*2)/2));changed();};
+    r.addEventListener('input',()=>set(+r.value));
+    mn.onclick=()=>set(S.targets[b]-0.5);pl.onclick=()=>set(S.targets[b]+0.5);
+    fq.onclick=()=>{S.on[b]=S.on[b]?0:1;changed();};
+    bandEls.push({d,fq,r,out:d.querySelector('output'),dig:d.querySelector('.dig'),meas:d.querySelector('.meas')});});
+})();
+$('allUp').onclick=()=>{S.targets=S.targets.map(v=>Math.min(TMAX,v+1));changed();};
+$('allDown').onclick=()=>{S.targets=S.targets.map(v=>Math.max(TMIN,v-1));changed();};
+$('pDrill').onclick=()=>{S.targets=PRESET_DRILL.slice();S.on=[1,1,1,1,1,1,1,1];changed();};
+$('pFlat').onclick=()=>{S.targets=FC.map(()=>80);S.on=[1,1,1,1,1,1,1,1];changed();};
+
+function changed(){save();renderControl();applyMode();schedulePeak();}
+
+let measured=null; /* dB SPL per band from verify */
+function renderControl(){
+  FC.forEach((_,b)=>{const e=bandEls[b],T=S.targets[b];
+    e.r.value=T;e.out.textContent=T.toFixed(1);e.fq.setAttribute('aria-pressed',String(!!S.on[b]));
+    e.dig.textContent=f1(Ldig(b))+' dBFS';
+    if(measured){e.meas.hidden=false;e.meas.textContent='נמדד '+f1(measured[b]);}else e.meas.hidden=true;});
+  let z=0,a=0;FC.forEach((_,b)=>{if(S.on[b]){z+=Math.pow(10,S.targets[b]/10);a+=Math.pow(10,(S.targets[b]+AW[b])/10);}});
+  $('roZ').textContent=z?f1(db2(z)):'—';$('roA').textContent=a?f1(db2(a)):'—';
+  drawChart();renderCalState();
+}
+function renderCalState(){
+  const ok=calibrated(),chip=$('calChip');
+  chip.className='chip '+(ok?'ok':'warn');chip.textContent=ok?'מכויל':'לא מכויל';
+  if(!statusSticky){const n=$('uncalNote');n.hidden=ok;if(!ok){n.className='status';n.innerHTML='עדיין אין כיול מלא. הצליל יתנגן, אבל ערכי ה‑dB SPL בפסים בלי K הם הנחה (K = 100). עבור ללשונית <b>כיול</b>.';}}
+}
+
+/* headroom: exact peak of the summed loop at current gains */
+let peakT=null;
+function schedulePeak(){clearTimeout(peakT);peakT=setTimeout(calcPeak,120);}
+function calcPeak(){const el=$('roHead');if(!bands){el.textContent='—';return;}
+  const g=FC.map((_,b)=>gainOf(b)),N=bands[0].length;let pk=0;
+  for(let n=0;n<N;n++){let s=0;for(let b=0;b<8;b++)if(g[b])s+=g[b]*bands[b][n];const a=s<0?-s:s;if(a>pk)pk=a;}
+  const h=pk>0?-db2(pk*pk):Infinity;el.textContent=isFinite(h)?f1(h):'—';
+  el.parentElement.style.borderColor=h<0?'var(--bad)':h<3?'var(--warn)':'';
+  el.style.color=h<0?'var(--bad)':'';
+  if(h<0)showStatus('<b>עיוות (Clipping):</b> חסרים '+f1(-h)+' dB. הורד את היעדים, או הגבר את ה‑JBL וכייל מחדש.','err');
+  else if(statusSticky&&$('uncalNote').classList.contains('err'))hideStatus();
+}
+
+/* chart */
+function drawChart(){const svg=$('chart'),W=360,H=180,L=34,R=8,T=10,B=26,lo=40,hi=120;
+  const y=v=>T+(H-T-B)*(1-(Math.max(lo,Math.min(hi,v))-lo)/(hi-lo)),cw=(W-L-R)/8;let s='';
+  [40,60,80,100,120].forEach(v=>{s+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" stroke-width="1"/><text x="${L-6}" y="${y(v)+4}" text-anchor="end" font-size="10" fill="var(--muted)" font-family="IBM Plex Mono,monospace">${v}</text>`;});
+  FC.forEach((_,b)=>{const x=L+b*cw+cw*0.2,w=cw*0.6,T0=S.targets[b];
+    s+=`<rect x="${x}" y="${y(T0)}" width="${w}" height="${y(lo)-y(T0)}" rx="3" fill="var(--accent)" opacity="${S.on[b]?1:0.25}"/>`;
+    if(measured&&isFinite(measured[b]))s+=`<line x1="${x-3}" x2="${x+w+3}" y1="${y(measured[b])}" y2="${y(measured[b])}" stroke="var(--meas)" stroke-width="3" stroke-linecap="round"/>`;
+    s+=`<text x="${x+w/2}" y="${H-8}" text-anchor="middle" font-size="10.5" fill="var(--muted)" font-family="IBM Plex Mono,monospace">${LAB[b]}</text>`;});
+  s+=`<text x="4" y="${T+4}" font-size="9" fill="var(--muted)" font-family="IBM Plex Mono,monospace">dB</text>`;
+  svg.innerHTML=s;}
+
+/* ---------- play ---------- */
+$('playBtn').onclick=async()=>{
+  if(mode==='cal')return;
+  if(mode==='play'){mode='idle';stopVerify();stopEngine();setPlayBtn();return;}
+  try{setSession('playback');await ensureAudio();}catch(e){showStatus('לא ניתן להפעיל שמע: '+e.message,'err');return;}
+  testBand=-1;renderTestBtns();mode='play';startEngine();applyMode();setPlayBtn();};
+function setPlayBtn(){const p=mode==='play';$('playBtn').setAttribute('aria-pressed',String(p));$('playBtn').textContent=p?'■ עצור':'▶ נגן';$('verifyBtn').disabled=!p;}
+
+/* ---------- verify ---------- */
+let vTimer=null,ring=[];
+$('verifyBtn').onclick=async()=>{
+  if(vTimer){stopVerify();return;}
+  try{await micOn();}catch(e){showStatus(micErrorText(e),'err');return;}
+  ring=[];$('verifyBtn').classList.add('on');$('verifyBtn').textContent='עצור אימות';
+  vTimer=setInterval(()=>{ring.push(readBands());if(ring.length>20)ring.shift();
+    measured=FC.map((_,b)=>{let s=0;ring.forEach(r=>s+=r[b]);return db2(s/ring.length+1e-30)+S.cal.cmic;});renderControl();},150);};
+function stopVerify(){if(vTimer){clearInterval(vTimer);vTimer=null;}measured=null;micOff();
+  $('verifyBtn').classList.remove('on');$('verifyBtn').textContent='מדידת אימות';renderControl();}
+
+/* ---------- calibration ---------- */
+const fLt=$('fLtest'),fCm=$('fCmic'),fSt=$('fSettle');
+function syncFields(){fLt.value=S.cal.ltest;fCm.value=S.cal.cmic;fSt.value=S.cal.settle;}
+fLt.onchange=()=>{const v=+fLt.value;if(isFinite(v)&&v<=-6&&v>=-60)S.cal.ltest=v;syncFields();save();renderAll();};
+fCm.onchange=()=>{const v=+fCm.value;if(isFinite(v)&&v>60&&v<180)S.cal.cmic=v;syncFields();save();renderAll();};
+fSt.onchange=()=>{const v=+fSt.value;if(isFinite(v)&&v>=0.3&&v<=5)S.cal.settle=v;syncFields();save();};
+
+function snrOf(x){return(x.tot!=null&&x.bg!=null)?x.tot-x.bg:null;}
+function renderCal(){const tb=$('calBody');
+  if(!tb.children.length){FC.forEach((_,b)=>{const d=document.createElement('div');d.className='cb';
+    d.innerHTML=`<div class="hz">${LAB[b]} <small>Hz</small></div>
+      <div class="k">K = <b class="kv">—</b> dB</div>
+      <button class="tplay" aria-pressed="false" aria-label="נגן ${LAB[b]} לבד ברמת בדיקה">▶</button>
+      <div class="m"><span>רקע <b class="bg"></b></span><span>מדוד <b class="tot"></b></span><span>אות <b class="sig"></b></span><span>SNR <b class="snr"></b></span></div>
+      <label class="ref">ייחוס R (dB SPL)<input id="ref${b}" type="number" step="0.1" inputmode="decimal" placeholder="—"></label>`;
+    tb.appendChild(d);
+    const inp=d.querySelector('input');inp.onchange=()=>{const v=inp.value.trim();S.cal.bands[b].ref=v===''?null:(isFinite(+v)?+v:null);if(S.cal.bands[b].ref!=null&&!S.cal.date)S.cal.date=new Date().toISOString();save();renderAll();};
+    d.querySelector('.tplay').onclick=()=>toggleTest(b);});}
+  FC.forEach((_,b)=>{const d=tb.children[b],q=c=>d.querySelector(c),x=S.cal.bands[b],snr=snrOf(x),k=K(b);
+    q('.bg').textContent=f1(x.bg);q('.tot').textContent=f1(x.tot);q('.sig').textContent=f1(x.sig);
+    const sn=q('.snr');sn.textContent=f1(snr);sn.className='snr '+(snr==null?'':snr>=10?'snr-ok':snr>=3?'snr-warn':'snr-bad');
+    const inp=q('input');if(document.activeElement!==inp)inp.value=x.ref==null?'':x.ref;
+    q('.kv').textContent=f1(k);});
+  $('calJson').value=JSON.stringify(S.cal);
+}
+function renderTestBtns(){document.querySelectorAll('.tplay').forEach((btn,i)=>btn.setAttribute('aria-pressed',String(mode==='test'&&testBand===i)));}
+async function toggleTest(b){
+  if(mode==='cal')return;
+  if(mode==='test'&&testBand===b){mode='idle';testBand=-1;stopEngine();renderTestBtns();return;}
+  try{setSession('playback');await ensureAudio();}catch(e){return;}
+  if(mode==='play'){stopVerify();}
+  mode='test';testBand=b;startEngine();applyMode();setPlayBtn();renderTestBtns();}
+
+$('calBtn').onclick=async()=>{
+  if(mode==='cal'){abortCal=true;return;}
+  const prog=$('calProg'),msg=$('calMsg'),btn=$('calBtn');
+  stopVerify();
+  try{await ensureAudio();await micOn();}catch(e){msg.textContent=micErrorText(e);msg.style.color='var(--bad)';return;}
+  msg.style.color='';
+  mode='cal';abortCal=false;testBand=-1;renderTestBtns();setPlayBtn();btn.textContent='בטל';
+  startEngine();setGains(FC.map(()=>0));
+  const total=8+1,settle=S.cal.settle*1000,meas=3000;let step=0;
+  const tick=(i,n)=>{prog.style.width=((step+i/n)/total*100)+'%';};
+  try{
+    msg.textContent='מודד רעש רקע… שקט בבקשה';await sleep(800);
+    const bg=await measure(meas,tick);step++;
+    const g=Math.pow(10,(S.cal.ltest-LREF)/20);
+    for(let b=0;b<8;b++){
+      msg.textContent='מנגן ומודד '+LAB[b]+' Hz ('+(b+1)+'/8)';
+      setGains(FC.map((_,i)=>i===b?g:0));await sleep(settle);
+      const tot=(await measure(meas,tick))[b];step++;
+      const d=Math.pow(10,tot/10)-Math.pow(10,bg[b]/10);
+      const x=S.cal.bands[b];x.bg=bg[b];x.tot=tot;x.sig=(tot-bg[b]>=3&&d>0)?db2(d):null;
+      setGains(FC.map(()=>0));renderCal();}
+    S.cal.date=new Date().toISOString();save();
+    const bad=FC.filter((_,b)=>S.cal.bands[b].sig==null).map(b=>LAB[b]);
+    msg.textContent=bad.length?'הסתיים. פסים בלי אות מספיק (SNR < 3 dB): '+bad.join(', ')+'. הגבר את ה‑JBL או העלה את L_test וכייל שוב.':'הכיול הסתיים ונשמר.';
+    prog.style.width='100%';
+  }catch(e){msg.textContent=e.message==='abort'?'הכיול בוטל.':'שגיאה: '+e.message;}
+  setGains(FC.map(()=>0));stopEngine();micOff();mode='idle';btn.textContent='התחל כיול';setPlayBtn();renderAll();
+};
+$('calibBtn').onclick=async()=>{
+  const msg=$('calibMsg'),btn=$('calibBtn'),lvl=+$('fCalLvl').value;
+  if(!isFinite(lvl)||lvl<60||lvl>150){msg.textContent='רמת קולן לא תקינה.';return;}
+  if(mode==='cal'||btn.disabled)return;
+  if(mode==='play'||mode==='test'){stopVerify();stopEngine();mode='idle';testBand=-1;renderTestBtns();setPlayBtn();}
+  try{await ensureAudio();await micOn();}catch(e){msg.textContent=micErrorText(e);msg.style.color='var(--bad)';return;}
+  msg.style.color='';btn.disabled=true;abortCal=false;
+  try{
+    msg.textContent='מתייצב…';await sleep(1000);
+    const runs=[];for(let r=0;r<5;r++){msg.textContent='מודד… '+(r+1)+'/5';runs.push((await measure(1000))[4]);}
+    const all=await Promise.resolve(runs),m=10*Math.log10(all.reduce((s,v)=>s+Math.pow(10,v/10),0)/all.length);
+    const spread=Math.max(...all)-Math.min(...all);
+    if(m<-70){msg.textContent='לא נקלט טון של 1 kHz (M = '+f1(m)+' dBFS). בדוק שהקולן דולק וצמוד למיקרופון.';msg.style.color='var(--bad)';}
+    else{S.cal.cmic=Math.round((lvl-m)*10)/10;syncFields();save();renderAll();
+      msg.innerHTML='M<sub>1k</sub> = '+f1(m)+' dBFS → C<sub>mic</sub> = '+f1(lvl)+' − ('+f1(m)+') = <b>'+f1(S.cal.cmic)+' dB</b>'+(spread>1?'. <span style="color:var(--warn)">הקריאה לא יציבה ('+f1(spread)+' dB) — הצמד טוב יותר ומדוד שוב.</span>':'. נשמר.');}
+  }catch(e){msg.textContent='שגיאה: '+e.message;}
+  micOff();btn.disabled=false;
+};
+$('cmicFrom1k').onclick=()=>{const x=S.cal.bands[4];
+  if(x.ref==null||x.sig==null){$('calMsg').textContent='צריך גם מדידת מיקרופון וגם ערך ייחוס R בשורת 1k.';return;}
+  S.cal.cmic=Math.round((x.ref-x.sig)*10)/10;
+  /* keep 1k on the mic path now that C_mic is anchored */
+  syncFields();save();$('calMsg').textContent='C_mic עודכן ל‑'+f1(S.cal.cmic)+' dB. כל הפסים שנמדדו במיקרופון מחושבים מחדש.';renderAll();};
+$('calReset').onclick=()=>{if($('calReset').dataset.arm!=='1'){$('calReset').dataset.arm='1';$('calReset').textContent='לחץ שוב לאישור';setTimeout(()=>{$('calReset').dataset.arm='';$('calReset').textContent='אפס כיול';},3000);return;}
+  S.cal=defState().cal;$('calReset').dataset.arm='';$('calReset').textContent='אפס כיול';syncFields();save();renderAll();};
+$('copyCal').onclick=()=>{const t=$('calJson');const done=()=>{$('copyCal').textContent='הועתק';setTimeout(()=>$('copyCal').textContent='העתק',1500);};
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t.value).then(done,()=>{t.select();});else t.select();};
+$('loadCal').onclick=()=>{try{const o=JSON.parse($('calJson').value);if(!o||!Array.isArray(o.bands)||o.bands.length!==8)throw 0;S.cal=o;syncFields();save();renderAll();$('calMsg').textContent='הכיול נטען.';}catch(e){$('calMsg').textContent='הטקסט אינו כיול תקין.';}};
+
+/* ---------- formula with live numbers ---------- */
+(function(){const s=$('eqBand');FC.forEach((_,b)=>{const o=document.createElement('option');o.value=b;o.textContent=LAB[b]+' Hz';s.appendChild(o);});s.value=4;s.onchange=renderEq;})();
+function renderEq(){const b=+$('eqBand').value,c=S.cal,x=c.bands[b],k=K(b),T=S.targets[b],L=T-Kuse(b),g=Math.pow(10,(L-LREF)/20);
+  const lines=[];
+  if(x.ref!=null)lines.push(`K = R − L_test = ${f1(x.ref)} − (${f1(c.ltest)}) = ${f1(k)} dB`);
+  else if(x.sig!=null){
+    lines.push(`M_sig = 10·log10(10^(${f1(x.tot)}/10) − 10^(${f1(x.bg)}/10)) = ${f1(x.sig)} dBFS`);
+    lines.push(`K = ${f1(x.sig)} + ${f1(c.cmic)} − (${f1(c.ltest)}) = ${f1(k)} dB`);}
+  else lines.push(`K: אין מדידה לפס הזה, משתמש ב‑${KDEF} (הנחה)`);
+  lines.push('');
+  lines.push(`T = ${f1(T)} dB SPL`);
+  lines.push(`L = T − K = ${f1(T)} − ${f1(Kuse(b))} = ${f1(L)} dBFS`);
+  lines.push(`g = 10^((${f1(L)} − (${LREF}))/20) = ${g.toFixed(4)}`);
+  $('eqLive').textContent=lines.join('\n');}
+
+function renderAll(){renderControl();renderCal();renderEq();applyMode();schedulePeak();}
+syncFields();renderAll();setPlayBtn();
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&ctx&&ctx.state!=='running'&&mode!=='idle')ctx.resume().catch(()=>{});});
+})();
+</script>
+
+</body>
+</html>
