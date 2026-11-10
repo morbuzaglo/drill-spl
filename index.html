@@ -152,7 +152,7 @@ textarea{min-height:90px;font-size:12px}
         <span class="muted">עמודה = יעד · קו כחול = נמדד במיקרופון</span>
         <button class="btn" id="verifyBtn">מדידת אימות</button>
       </div>
-      <p class="muted" style="margin-top:6px;color:var(--warn)">מדידת אימות תקפה רק בחיבור כבל AUX. ב‑Bluetooth באייפון, פתיחת המיקרופון מעבירה את הצליל לרמקול של האייפון, ולכן המדידה לא מייצגת את ה‑JBL.</p>
+      <p class="muted ios-only" style="margin-top:6px;color:var(--warn)">באייפון מדידת אימות תקפה רק בחיבור כבל AUX. ב‑Bluetooth באייפון, פתיחת המיקרופון מעבירה את הצליל לרמקול של האייפון, ולכן המדידה לא מייצגת את ה‑JBL.</p>
     </div>
     <div class="panel">
       <div class="row" style="justify-content:space-between;margin-bottom:6px">
@@ -180,7 +180,7 @@ textarea{min-height:90px;font-size:12px}
         <li>ה‑JBL על הרצפה, מחובר ב‑Bluetooth. קבע עוצמה באייפון וברמקול <b>ואל תיגע בהן יותר</b>.</li>
         <li>עמוד 1 מ׳ מהרמקול, האייפון בגובה האוזן, המיקרופון התחתון מופנה לרמקול.</li>
         <li>חדר שקט. במהלך הכיול אל תזוז ואל תדבר (כ‑35 שניות).</li>
-        <li>באייפון, כשהמיקרופון פתוח iOS מעביר את הצליל לרמקול של האייפון. לכן עם JBL ב‑Bluetooth השתמש ב<b>כיול עם מכשיר מקליט</b> למטה.</li>
+        <li class="ios-only">באייפון, כשהמיקרופון פתוח iOS מעביר את הצליל לרמקול של האייפון. לכן עם JBL ב‑Bluetooth השתמש ב<b>כיול עם מכשיר מקליט</b> למטה.</li>
       </ol>
     </div>
     <div class="panel">
@@ -241,7 +241,7 @@ textarea{min-height:90px;font-size:12px}
         <button class="btn primary" id="calBtn">התחל כיול</button>
       </div>
       <div class="progress" style="margin-top:10px"><i id="calProg"></i></div>
-      <p class="muted" id="calMsg" style="margin-top:6px">עובד רק אם הצליל נשאר ב‑JBL כשהמיקרופון פתוח, למשל בחיבור כבל AUX. ב‑Bluetooth באייפון השתמש במכשיר מקליט.</p>
+      <p class="muted" id="calMsg" style="margin-top:6px">מודד רעש רקע, ואז מנגן כל אוקטבה לבד ומודד.<span class="ios-only"> באייפון זה עובד רק בחיבור כבל AUX. ב‑Bluetooth השתמש במכשיר מקליט.</span></p>
       <div class="calList" id="calBody" style="margin-top:10px"></div>
       <p class="muted" style="margin-top:8px">ערכי M ב‑dBFS. <b>ייחוס R</b>: אם יש מד SPL חיצוני, הפעל ▶ בשורה, קרא את המד (Z או C, תגובה Slow) והקלד. ערך R גובר על המיקרופון בפס הזה.</p>
       <div class="row" style="margin-top:10px">
@@ -312,6 +312,8 @@ L_A = 10·log10 Σ 10^((T_b+A_b)/10)</div>
 <script>
 (function(){
 "use strict";
+const IS_IOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+if(!IS_IOS)document.querySelectorAll('.ios-only').forEach(e=>e.hidden=true);
 try{document.documentElement.lang='he';}catch(e){}
 const FC=[62.5,125,250,500,1000,2000,4000,8000];
 const LAB=['63','125','250','500','1k','2k','4k','8k'];
@@ -506,7 +508,7 @@ let vTimer=null,ring=[];
 $('verifyBtn').onclick=async()=>{
   if(vTimer){stopVerify();return;}
   try{await micOn();}catch(e){showStatus(micErrorText(e),'err');return;}
-  showStatus('<b>אימות פעיל.</b> אם הצליל עבר מה‑JBL לרמקול של האייפון, המדידה לא תקפה. זה קורה תמיד ב‑Bluetooth. לחץ "עצור אימות" כדי להחזיר את הצליל ל‑JBL.','');
+  if(IS_IOS)showStatus('<b>אימות פעיל.</b> אם הצליל עבר מה‑JBL לרמקול של האייפון, המדידה לא תקפה. זה קורה תמיד ב‑Bluetooth. לחץ "עצור אימות" כדי להחזיר את הצליל ל‑JBL.','');
   ring=[];$('verifyBtn').classList.add('on');$('verifyBtn').textContent='עצור אימות';
   vTimer=setInterval(()=>{ring.push(readBands());if(ring.length>20)ring.shift();
     measured=FC.map((_,b)=>{let s=0;ring.forEach(r=>s+=r[b]);return db2(s/ring.length+1e-30)+S.cal.cmic;});renderControl();},150);};
