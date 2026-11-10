@@ -152,6 +152,7 @@ textarea{min-height:90px;font-size:12px}
         <span class="muted">עמודה = יעד · קו כחול = נמדד במיקרופון</span>
         <button class="btn" id="verifyBtn">מדידת אימות</button>
       </div>
+      <p class="muted" style="margin-top:6px;color:var(--warn)">מדידת אימות תקפה רק בחיבור כבל AUX. ב‑Bluetooth באייפון, פתיחת המיקרופון מעבירה את הצליל לרמקול של האייפון, ולכן המדידה לא מייצגת את ה‑JBL.</p>
     </div>
     <div class="panel">
       <div class="row" style="justify-content:space-between;margin-bottom:6px">
@@ -505,10 +506,11 @@ let vTimer=null,ring=[];
 $('verifyBtn').onclick=async()=>{
   if(vTimer){stopVerify();return;}
   try{await micOn();}catch(e){showStatus(micErrorText(e),'err');return;}
+  showStatus('<b>אימות פעיל.</b> אם הצליל עבר מה‑JBL לרמקול של האייפון, המדידה לא תקפה. זה קורה תמיד ב‑Bluetooth. לחץ "עצור אימות" כדי להחזיר את הצליל ל‑JBL.','');
   ring=[];$('verifyBtn').classList.add('on');$('verifyBtn').textContent='עצור אימות';
   vTimer=setInterval(()=>{ring.push(readBands());if(ring.length>20)ring.shift();
     measured=FC.map((_,b)=>{let s=0;ring.forEach(r=>s+=r[b]);return db2(s/ring.length+1e-30)+S.cal.cmic;});renderControl();},150);};
-function stopVerify(){if(vTimer){clearInterval(vTimer);vTimer=null;}measured=null;micOff();
+function stopVerify(){const was=!!vTimer;if(vTimer){clearInterval(vTimer);vTimer=null;}measured=null;micOff();if(was)hideStatus();
   $('verifyBtn').classList.remove('on');$('verifyBtn').textContent='מדידת אימות';renderControl();}
 
 /* ---------- calibration ---------- */
